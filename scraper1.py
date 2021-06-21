@@ -4,38 +4,39 @@ import requests
 import csv
 import socks
 import socket
-import os
 import datetime
+import time
+from elasticsearch import Elasticsearch
+import cv2 
+import glob 
+import requests
+import urllib.request
+import numpy as np
+from PIL import Image
+import imagehash
+from bs4 import BeautifulSoup
+import os
+from urllib.parse import urlparse
 
-def folder_create(images):
-	try:
-		# year month day 
-		dayTime = datetime.datetime.now().strftime('%Y-%m-%d')
-		# Minutes and seconds 
-		hourTime = datetime.datetime.now().strftime('%H-%M-%S')
 
-		folder_name = dayTime + '_' + hourTime
-		#folder_name = input("Enter Folder Name:- ")
-		# folder creation
-		pwd = os.getcwd() + '\\' + "Evidence" + '\\' + folder_name
-		print(pwd)
-		 # Determine whether the folder already exists
-		isExists = os.path.exists(pwd)
-		if not isExists:
-		    os.makedirs(pwd)
-		#os.mkdir(folder_name)
-
-	# if folder exists with that name, ask another name
-	except:
-		print("Folder Exist with that name!")
-		folder_create()
+def create_elk(images):
+	check = es.indices.exists(index="images")
+	print(check)
+	if check == "True":
+		download_images(images,pwd)
+	else:
+		print("Index Exist with that name!")
+		create_elk()
 
 	# image downloading start
-	download_images(images, pwd)
+	download_images(images)
 
 
 # DOWNLOAD ALL IMAGES FROM THAT URL
-def download_images(images, pwd):
+def download_images(images):
+	#creating hash dictionary
+	hash_doc = {"caption":[], "link":[], "hash":[], "timestamp": str(datetime.datetime.now())};
+	_id = 1
 	
 	# intitial count is zero
 	count = 0
@@ -75,6 +76,15 @@ def download_images(images, pwd):
 							# In image tag ,searching for "src"
 							image_link = url + image["src"]
 							print(image_link)
+
+							hash_doc["link"].append(image_link)
+							#creating hash for image 
+							image_data = Image.open(requests.get(image_link, stream=True).raw)
+							dhash = imagehash.dhash(image_data)
+							hash_value = str(dhash)
+							hash_doc["hash"].append(hash_value)
+							print(hash)
+
 						# if no Source URL found
 						except:
 							pass
@@ -91,9 +101,10 @@ def download_images(images, pwd):
 				except UnicodeDecodeError:
 
 					# After checking above condition, Image Download start
-					with open(f"{pwd}/images_{folder_name+1}.jpg", "wb+") as f:
-						f.write(r)
-
+					a = urlparse(url)
+					image_name = os.path.basename(a.path)
+					print(image_name) 
+					hash_doc["caption"].append(image_name)
 					# counting number of image downloaded
 					count += 1
 			except:
@@ -121,7 +132,7 @@ def main(url):
 	images = soup.findAll('img')
 
 	# Call folder create function
-	folder_create(images)
+	create_elk(images)
 
 
 # Configuring Socks to use Tor
@@ -134,14 +145,14 @@ def getaddrinfo(*args):
     return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
 socket.getaddrinfo = getaddrinfo
 
+# create a client instance of Elasticsearch
+es = Elasticsearch([{'host': '84.247.12.226', 'port': 9200}])
+
 print("---There are 66 pages in Total which to scrape----")
 page = input("Enter the page number to download : ")
 
 #get url
 url = "http://zqnrg4q6yn3ho4ii.onion"
 final_url = url + "/pedo/page" + page + ".html"
-main(url)
-
-
-
-
+print(final_url)
+main(final_url)
